@@ -1,0 +1,221 @@
+<html>
+<head>
+	<script   src="https://code.jquery.com/jquery-2.2.3.min.js"   integrity="sha256-a23g1Nt4dtEYOj7bR+vTu7+T8VP13humZFBJNIYoEJo="   crossorigin="anonymous"></script>
+	<style type="text/css">
+	html, body {
+		position: relative;
+		width: 100%;
+		height: 100%;
+		margin: 0;
+		padding: 0;
+		background: black;
+	}
+	.Ship {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		width: 0;
+		height: 0;
+		border-style: solid;
+		border-width: 20px 0px 20px 60px;
+		border-color: transparent transparent transparent #ffa200;
+	}
+	.bullet {
+		position: absolute;
+		width:10px;
+		height:10px;
+		border-radius: 50%;
+		background-color: white;
+	}
+	p {
+		color:gray;
+	}
+	</style>
+</head>
+<body>
+	<p>WASD: Forward, Left, Backward, Right</br>
+	Space Bar: Fire</p>
+
+	<div class="Ship"></div>
+
+	<script type="text/javascript">
+		var Ship = {
+			x: 0,
+			y: 0,
+			rotx: 0,
+			roty: 0
+		};
+		var bullets = [];
+		var mousePos = {};
+		var radians;
+		var loop;
+		var thrust = .5;
+		var isThrusting = false;
+		var bulletVelocity = 10;
+		var windowHeight = $(window).height();
+		var windowWidth = $(window).width();
+		var thrustDirectionRadians = 0;
+		var keyMap = [];
+		var velocity = {
+			x: 0,
+			y: 0
+		}
+
+		jQuery.fn.rotate = function(degrees) {
+		    $(this).css({'transform' : 'translate(-50%, -50%) rotate('+ degrees +'deg)'});
+		    return $(this);
+		};
+
+		var update = function(){
+			Ship.x = parseInt($('.Ship').css('left'));
+			Ship.y = parseInt($('.Ship').css('top'));
+
+			var dx = mousePos.x - Ship.x;
+			var dy = mousePos.y - Ship.y;
+			radians = Math.atan2(dy, dx);
+			
+			if(isThrusting){
+		      velocity.x += Math.cos(radians + thrustDirectionRadians) * thrust;
+		      velocity.y += Math.sin(radians + thrustDirectionRadians) * thrust;
+		    }
+
+		    $.each($('.bullet'), function(){
+		    	var $bullet = $(this);
+		    	var rads = $bullet.data('rads');
+		    	var x = $bullet.data('x');
+		    	var y = $bullet.data('y');
+
+		    	if (x >= windowWidth || x <= 0 || y >= windowHeight || y <= 0) { 
+		    		$bullet.remove();
+		    		return;
+		    	}
+
+		      	$bullet.css({'left': x + 'px', 'top': y + 'px' });
+		    	
+		    	x += Math.cos(rads) * bulletVelocity;
+		      	y += Math.sin(rads) * bulletVelocity;
+
+		      	$bullet.data('x', x);
+		      	$bullet.data('y', y);
+		    });
+			
+			$('.Ship').rotate(Math.degrees(radians));
+		    
+		    velocity.x *= 0.98;
+   			velocity.y *= 0.98;
+
+   			Ship.x += velocity.x;
+    		Ship.y += velocity.y;
+
+    		$('.Ship').css({'left': Ship.x + 'px', 'top': Ship.y + 'px'});
+		};
+
+		var init = function(){
+			setupListeners();
+		};
+
+		var addBullet = function(x, y){
+			$('body').append($('<div class="bullet" style="left:'+x+'px; top:'+y+'px;" data-rads="'+radians+'" data-x="'+x+'" data-y="'+y+'"></div>'));
+		};
+
+		var fire = function() {
+			addBullet(Ship.x,Ship.y);
+		};
+		
+		var handleKey = function(e) {
+    		keyMap[e.keyCode] = e.type == 'keydown';
+
+    		if (keyMap[87] && keyMap[65]) {
+    			thrustDirectionRadians = Math.radians(-45);
+			 	isThrusting = true;
+			 	return;
+    		}
+
+    		if (keyMap[87] && keyMap[68]) {
+    			thrustDirectionRadians = Math.radians(45);
+			 	isThrusting = true;
+			 	return;
+    		}
+
+    		if (keyMap[65] && keyMap[83]) {
+    			thrustDirectionRadians = Math.radians(-135);
+			 	isThrusting = true;
+			 	return;
+    		}
+
+    		if (keyMap[68] && keyMap[83]) {
+    			thrustDirectionRadians = Math.radians(135);
+			 	isThrusting = true;
+			 	return;
+    		}
+
+    		if (keyMap[87]) {
+    			thrustDirectionRadians = Math.radians(0);
+			 	isThrusting = true;
+			 	return;
+    		}
+
+    		if (keyMap[65]) {
+    			thrustDirectionRadians = Math.radians(-90);
+			 	isThrusting = true;
+			 	return;
+    		}
+
+    		if (keyMap[83]) {
+    			thrustDirectionRadians = Math.radians(180);
+			 	isThrusting = true;
+			 	return;
+    		}
+
+    		if (keyMap[68]) {
+    			thrustDirectionRadians = Math.radians(90);
+			 	isThrusting = true;
+			 	return;
+    		}
+
+    		isThrusting = false;
+
+		}
+
+		var setupListeners = function(){
+			var throttled = false;
+			$(document).mousemove(function(e){
+				if (throttled) { return };
+				throttled = true;
+				mousePos = {
+					x: e.pageX,
+					y: e.pageY
+				}
+				setTimeout(function(){throttled = false;}, 30);
+			});
+			
+
+			$(document).on('keydown', function(e) {
+				switch (e.keyCode) {
+					case 32:
+						fire();
+					break;
+				}
+				handleKey(e);
+			});
+
+			$(document).on('keyup', function(e) {
+				handleKey(e);
+			});
+			
+			loop = setInterval(function(){ update(); }, 30);
+		};
+
+		Math.radians = function(degrees) {
+		  	return degrees * Math.PI / 180;
+		};
+		 
+		Math.degrees = function(radians) {
+		  	return radians * 180 / Math.PI;
+		};
+
+		init();
+	</script>
+</body>
+</html>
