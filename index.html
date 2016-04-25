@@ -16,10 +16,126 @@
     Sprite = PIXI.Sprite;
     var ship, loop;
     var mousePos = {};
+    var graveyard = [];
     var mouseThrottle;
+    var bullets = [];
     
-    var thrust = .5;
-    var isThrusting = false;
+    var Bullet = function(x, y, radians, speed) {
+        var sprite;
+        var velocity = 10;//speed;
+        var init = function(){
+            sprite = new Sprite(resources["laser.png"].texture);
+
+            sprite.anchor.x = 0.5;
+            sprite.anchor.y = 0.5;
+            sprite.rotation = radians;
+
+            sprite.position.set(x, y);
+            
+            world.addChild(sprite);
+        }
+        
+        var update = function(){
+            if ( x < 0 || y < 0 || x > 5000 || y > 5000) {
+                var i = bullets.indexOf(this);
+                bullets.splice(i, 1);
+                
+                graveyard.push(this);
+            }
+            
+            x = sprite.x += Math.cos(radians) * velocity;
+            y = sprite.y += Math.sin(radians) * velocity;
+            
+        }
+        
+        var destroy = function() {
+            world.removeChild(sprite);
+            //sprite.destroy(true);
+        }
+        
+        init();
+        
+        return {
+            update: update,
+            destroy: destroy
+        }
+    }
+    
+    var Ship = function(){
+        var pos = {
+            x: 2500,
+            y: 2500
+        }
+        var velocity = {
+            x: 0,
+            y: 0
+        }
+        var sprite;
+        var scale = 1;
+        var thrust = 0.5;
+        var isThrusting = false;
+        var radians = 0;
+        var speed;
+        var init = function(){
+            sprite = new Sprite(resources["ship.png"].texture);
+            sprite.scale.x = sprite.scale.y = scale;
+            sprite.anchor.x = 0.5;
+            sprite.anchor.y = 0.5;
+
+            sprite.position.set(pos.x, pos.y);
+            
+            world.addChild(sprite);
+            
+            setupListeners();
+        }
+        var update = function(){
+            var dx = mousePos.x - window.innerWidth/2;
+            var dy = mousePos.y - window.innerHeight/2;
+            radians = Math.atan2(dy, dx);
+
+            if(isThrusting){
+                velocity.x += Math.cos(radians) * thrust;
+                velocity.y += Math.sin(radians) * thrust;
+            }
+            
+            speed = Math.sqrt((velocity.x*velocity.x)+(velocity.y*velocity.y));
+            //console.log(speed);
+            velocity.x *= 0.99;
+            velocity.y *= 0.99;
+
+            sprite.rotation = radians;
+            
+            pos.x = sprite.x += velocity.x;
+            pos.y = sprite.y += velocity.y;
+        }
+        var setupListeners = function() {
+            $(document).on('keydown', function(e) {
+                switch (e.keyCode) {
+                    case 32:
+                        isThrusting = true;
+                    break;
+                    case 70:
+                        bullets.push(new Bullet(pos.x, pos.y, radians, speed));
+                    break;
+                }
+            });
+
+            $(document).on('keyup', function(e) {
+                switch (e.keyCode) {
+                    case 32:
+                        isThrusting = false;
+                    break;
+                }
+            });
+        }
+        
+        init();
+        
+        return {
+            pos: pos,
+            update: update
+        }
+    }
 
     var stage = new Container(),
         renderer = autoDetectRenderer(256, 256, {antialias: false});
@@ -40,32 +156,24 @@
     var camera = world.camera;
     var instructions = new PIXI.Text('Use space to thrust.', {fill:'#CCCCCC'});
  
-    // Position the text
     instructions.x = 20;
     instructions.y = 20;
     instructions.scale.x = instructions.scale.y = .5;
     
-    // Add Player one Text to the stage
     stage.addChild(instructions);
  
     stage.addChild(world);
     
     document.body.appendChild(renderer.view);
 
-    loader.add("ship.png").add("tile.png").load(setup);
+    loader.add("ship.png").add("laser.png").add("tile.png").load(setup);
 
     function setup() {
-        ship = new Sprite(resources["ship.png"].texture);
-        ship.scale.x = ship.scale.y = 1;
-        ship.anchor.x = 0.5;
-        ship.anchor.y = 0.5;
-
-        ship.position.set(2500, 2500);
         loop = setInterval(function(){ update(); }, 30);
         
         var frame = PIXI.Texture.fromFrame("tile.png");
         var tiling = new PIXI.extras.TilingSprite(frame, 5000, 5000);
-        tiling.alpha= 0.1;
+        tiling.alpha= 0.05;
         
         var graphics = new PIXI.Graphics();
 
@@ -84,7 +192,8 @@
         
 
         world.addChild(tiling);
-        world.addChild(ship);
+        ship = new Ship();
+        
         stage.addChild(instructions);
         
         setupListeners();
@@ -94,7 +203,6 @@
         mouseThrottle = false;
         
         $(document).mousemove(function(e){
-            //console.log(world.getMousePosition());
             if (mouseThrottle) { return };
             mouseThrottle = true;
             mousePos = {
@@ -103,51 +211,31 @@
             }
             setTimeout(function(){mouseThrottle = false;}, 30);
         });
-        
-        $(document).on('keydown', function(e) {
-            switch (e.keyCode) {
-                case 32:
-                    isThrusting = true;
-                break;
-            }
-            //handleKey(e);
-        });
-
-        $(document).on('keyup', function(e) {
-            switch (e.keyCode) {
-                case 32:
-                    isThrusting = false;
-                break;
-            }
-            //handleKey(e);
-        });
-    }
-    var velocity = {
-        x: 0,
-        y: 0
     }
     
     function update(){
-        var dx = mousePos.x - window.innerWidth/2;
-        var dy = mousePos.y - window.innerHeight/2;
-        var radians = Math.atan2(dy, dx);
+        ship.update();
         
-        
-        if(isThrusting){
-            velocity.x += Math.cos(radians) * thrust;
-            velocity.y += Math.sin(radians) * thrust;
+        if (bullets.length > 0) {
+            bullets.forEach(function(bullet){
+                bullet.update(); 
+            });
         }
         
-        velocity.x *= 0.99;
-        velocity.y *= 0.99;
+        camera.x = ship.pos.x;
+        camera.y = ship.pos.y;
 
-        camera.x = ship.x += velocity.x;
-        camera.y = ship.y += velocity.y;
-
-        ship.rotation = radians;
+        
         
         world.update();
         renderer.render(stage);
+        
+        if( graveyard.length > 0) {
+            graveyard.forEach(function(body){
+                body.destroy(); 
+            });
+            graveyard = [];
+        }
     }
     
     Math.radians = function(degrees) {
