@@ -23,7 +23,7 @@
     var Bullet = function(x, y, radians, speed) {
         var sprite;
         var init = function(){
-            sprite = new Sprite(resources["laser.png"].texture);
+            sprite = new Sprite(resources["plasma.png"].texture);
 
             sprite.anchor.x = 0.5;
             sprite.anchor.y = 0.5;
@@ -52,11 +52,28 @@
             //sprite.destroy(true);
         }
         
+        var height = function(){
+            return sprite.height;
+        }
+        
+        var width = function(){
+            return sprite.width;
+        }
+        var position = function() {
+            return {
+                x: x,
+                y: y
+            }
+        }
+        
         init();
         
         return {
             update: update,
-            destroy: destroy
+            position: position,
+            destroy: destroy,
+            height: height,
+            width: width
         }
     }
     
@@ -127,12 +144,21 @@
                 }
             });
         }
+        var handleCollision = function(){
+            sprite.tint = 0xFF0000;
+            setTimeout(function(){
+                sprite.tint = 0xFFFFFF;
+            }, 250);
+        }
         
         init();
         
         return {
             pos: pos,
-            update: update
+            update: update,
+            position: pos,
+            handleCollision:handleCollision,
+            sprite: sprite
         }
     }
 
@@ -165,7 +191,7 @@
     
     document.body.appendChild(renderer.view);
 
-    loader.add("ship.png").add("laser.png").add("tile.png").load(setup);
+    loader.add("ship.png").add("plasma.png").add("tile.png").load(setup);
 
     function setup() {
         loop = setInterval(function(){ update(); }, 30);
@@ -184,11 +210,6 @@
         graphics.drawRect(0, 0, 5000, 5000);
 
         world.addChild(graphics);
-        //tiling.pivot.set(0,frame.height);
-        //tiling.x = 0;
-        //tiling.y = 0;
-        //tiling.tint = 0xc5c5c5;
-        
 
         world.addChild(tiling);
         ship = new Ship();
@@ -224,10 +245,10 @@
         camera.x = ship.pos.x;
         camera.y = ship.pos.y;
 
-        
-        
         world.update();
         renderer.render(stage);
+        
+        CollisionManager();
         
         if( graveyard.length > 0) {
             graveyard.forEach(function(body){
@@ -244,5 +265,20 @@
     Math.degrees = function(radians) {
         return radians * 180 / Math.PI;
     };
+    
+    CollisionManager = function(){
+        for (var i = 0; i < bullets.length; i++) 	{
+            var bullet = bullets[i];		
+            var xdist = bullet.position().x - ship.position.x;
+            
+            if(xdist > -bullet.width() && xdist < bullet.width()){
+                var ydist = bullet.position().y - ship.position.y;
+            
+                if(ydist > -bullet.height() && ydist < bullet.height()){
+                    ship.handleCollision();
+                }		
+            }	
+        }
+    }
 </script>
 </body>
