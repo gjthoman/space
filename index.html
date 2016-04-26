@@ -22,7 +22,6 @@
     
     var Bullet = function(x, y, radians, speed) {
         var sprite;
-        //var velocity = 10;//speed;
         var init = function(){
             sprite = new Sprite(resources["laser.png"].texture);
 
@@ -70,16 +69,11 @@
             x: 0,
             y: 0
         }
-        var bulletVelocity = {
-            x: 0,
-            y: 0
-        }
         var sprite;
         var scale = 1;
         var thrust = 0.5;
         var isThrusting = false;
         var radians = 0;
-        var speed;
         var init = function(){
             sprite = new Sprite(resources["ship.png"].texture);
             sprite.scale.x = sprite.scale.y = scale;
@@ -101,9 +95,6 @@
                 velocity.x += Math.cos(radians) * thrust;
                 velocity.y += Math.sin(radians) * thrust;
             }
-            
-            bulletVelocity.x = Math.cos(radians) * 20 + velocity.x;
-            bulletVelocity.y = Math.sin(radians) * 20 + velocity.y;
             
             velocity.x *= 0.99;
             velocity.y *= 0.99;
