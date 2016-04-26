@@ -22,7 +22,7 @@
     
     var Bullet = function(x, y, radians, speed) {
         var sprite;
-        var velocity = 10;//speed;
+        //var velocity = 10;//speed;
         var init = function(){
             sprite = new Sprite(resources["laser.png"].texture);
 
@@ -43,8 +43,8 @@
                 graveyard.push(this);
             }
             
-            x = sprite.x += Math.cos(radians) * velocity;
-            y = sprite.y += Math.sin(radians) * velocity;
+            x = sprite.x += speed.x;
+            y = sprite.y += speed.y;
             
         }
         
@@ -67,6 +67,10 @@
             y: 2500
         }
         var velocity = {
+            x: 0,
+            y: 0
+        }
+        var bulletVelocity = {
             x: 0,
             y: 0
         }
@@ -98,8 +102,9 @@
                 velocity.y += Math.sin(radians) * thrust;
             }
             
-            speed = Math.sqrt((velocity.x*velocity.x)+(velocity.y*velocity.y));
-            //console.log(speed);
+            bulletVelocity.x = Math.cos(radians) * 20 + velocity.x;
+            bulletVelocity.y = Math.sin(radians) * 20 + velocity.y;
+            
             velocity.x *= 0.99;
             velocity.y *= 0.99;
 
@@ -115,7 +120,10 @@
                         isThrusting = true;
                     break;
                     case 70:
-                        bullets.push(new Bullet(pos.x, pos.y, radians, speed));
+                        bullets.push(new Bullet(pos.x, pos.y, radians, {
+                            x:Math.cos(radians) * 20 + velocity.x, 
+                            y:Math.sin(radians) * 20 + velocity.y
+                        }));
                     break;
                 }
             });
