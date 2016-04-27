@@ -14,12 +14,24 @@
     var shipRef;
     var objects = {};
     var objectsRef = ref.child("ship");
-    var enemies = [];
+    var enemies = {};
     
     objectsRef.on("value", function(snapshot) {
-      objects = snapshot.val();
-    }, function (errorObject) {
-      console.log("The read failed: " + errorObject.code);
+        enemyData = snapshot.val();
+        
+        for (var key in enemyData) {
+            if (enemyData.hasOwnProperty(key)) {
+                if (shipID != key){ 
+                    if ( enemies.hasOwnProperty(key)){
+                        console.log(enemyData[key]);
+                        enemies[key].update(enemyData[key]);
+                        
+                    } else {
+                        enemies[key] = new Enemy(key, enemyData[key]); 
+                    }
+                }
+            }
+        }
     });
     
 	var Container = PIXI.Container,
@@ -101,7 +113,7 @@
 
             sprite.anchor.x = 0.5;
             sprite.anchor.y = 0.5;
-            sprite.rotation = data.r;
+            sprite.rotation = 0;
 
             sprite.position.set(data.x, data.y);
             
@@ -119,7 +131,6 @@
             x = sprite.x = data.x;
             y = sprite.y = data.y;
             sprite.rotation = data.r;
-            
         }
         
         var destroy = function() {
@@ -275,7 +286,6 @@
     loader.add("ship.png").add("plasma.png").add("tile.png").add("enemy.png").load(setup);
 
     function setup() {
-        loop = setInterval(function(){ update(); }, 30);
         
         var frame = PIXI.Texture.fromFrame("tile.png");
         var tiling = new PIXI.extras.TilingSprite(frame, worldDimension, worldDimension);
@@ -306,6 +316,7 @@
         stage.addChild(instructions);
         
         setupListeners();
+        loop = setInterval(function(){ update(); }, 30);
     }
     
     function setupListeners() {
@@ -338,28 +349,6 @@
         renderer.render(stage);
         
         shipRef.update({x:ship.pos.x, y:ship.pos.y, r:ship.radians()||0});
-        
-        delete objects[shipID];
-        
-        if (enemies.length > 0) {
-            enemies.forEach(function(enemy){
-                if(objects[enemy.key]) {
-                    enemy.update(objects[enemy.key]);
-                    //delete objects[enemy.key];
-                } else {
-                    enemy.destroy();
-                }
-            });
-        }
-        
-        for (var key in objects) {
-            if (objects.hasOwnProperty(key)) {
-                var data = objects[key];
-                var enemy = new Enemy(key, data);
-                    
-                enemies.push(enemy);
-            }
-        }
         
         if( graveyard.length > 0) {
             graveyard.forEach(function(body){
