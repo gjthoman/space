@@ -4,11 +4,24 @@
 <style>* {padding: 0; margin: 0}</style>
 <body>
 <script   src="https://code.jquery.com/jquery-2.2.3.min.js"   integrity="sha256-a23g1Nt4dtEYOj7bR+vTu7+T8VP13humZFBJNIYoEJo="   crossorigin="anonymous"></script>
-
+<script src="https://cdn.firebase.com/js/client/2.4.2/firebase.js"></script>
 <script src="pixi.min.js"></script>
 <script src="pixicam.min.js"></script>
 
 <script>
+    var ref = new Firebase('https://sizzling-fire-3063.firebaseio.com/');
+    var shipID;
+    var shipRef;
+    var objects = {};
+    var objectsRef = ref.child("ship");
+    var enemies = [];
+    
+    objectsRef.on("value", function(snapshot) {
+      objects = snapshot.val();
+    }, function (errorObject) {
+      console.log("The read failed: " + errorObject.code);
+    });
+    
 	var Container = PIXI.Container,
     autoDetectRenderer = PIXI.autoDetectRenderer,
     loader = PIXI.loader,
@@ -19,6 +32,8 @@
     var graveyard = [];
     var mouseThrottle;
     var bullets = [];
+    
+    var worldDimension = 1000;
     
     var Bullet = function(x, y, radians, speed) {
         var sprite;
@@ -35,7 +50,7 @@
         }
         
         var update = function(){
-            if ( x < 0 || y < 0 || x > 5000 || y > 5000) {
+            if ( x < 0 || y < 0 || x > worldDimension || y > worldDimension) {
                 var i = bullets.indexOf(this);
                 bullets.splice(i, 1);
                 
@@ -77,10 +92,70 @@
         }
     }
     
-    var Ship = function(){
+    var Enemy = function(key, data) {
+        var sprite;
+        var key = key;
+        var x,y;
+        var init = function(){
+            sprite = new Sprite(resources["enemy.png"].texture);
+
+            sprite.anchor.x = 0.5;
+            sprite.anchor.y = 0.5;
+            sprite.rotation = data.r;
+
+            sprite.position.set(data.x, data.y);
+            
+            world.addChild(sprite);
+        }
+        
+        var update = function(data){
+            if ( data.x < 0 || data.y < 0 || data.x > worldDimension || data.y > worldDimension) {
+                var i = enemy.indexOf(this);
+                enemy.splice(i, 1);
+                
+                graveyard.push(this);
+            }
+            
+            x = sprite.x = data.x;
+            y = sprite.y = data.y;
+            sprite.rotation = data.r;
+            
+        }
+        
+        var destroy = function() {
+            world.removeChild(sprite);
+        }
+        
+        var height = function(){
+            return sprite.height;
+        }
+        
+        var width = function(){
+            return sprite.width;
+        }
+        var position = function() {
+            return {
+                x: data.x,
+                y: data.y
+            }
+        }
+        
+        init();
+        
+        return {
+            update: update,
+            position: position,
+            destroy: destroy,
+            height: height,
+            width: width,
+            key: key
+        }
+    }
+    
+    var Ship = function(player){
         var pos = {
-            x: 2500,
-            y: 2500
+            x: worldDimension/2,
+            y: worldDimension/2
         }
         var velocity = {
             x: 0,
@@ -90,7 +165,7 @@
         var scale = 1;
         var thrust = 0.5;
         var isThrusting = false;
-        var radians = 0;
+        var rads;
         var init = function(){
             sprite = new Sprite(resources["ship.png"].texture);
             sprite.scale.x = sprite.scale.y = scale;
@@ -106,43 +181,48 @@
         var update = function(){
             var dx = mousePos.x - window.innerWidth/2;
             var dy = mousePos.y - window.innerHeight/2;
-            radians = Math.atan2(dy, dx);
+            rads = Math.atan2(dy, dx);
 
             if(isThrusting){
-                velocity.x += Math.cos(radians) * thrust;
-                velocity.y += Math.sin(radians) * thrust;
+                velocity.x += Math.cos(rads) * thrust;
+                velocity.y += Math.sin(rads) * thrust;
             }
             
             velocity.x *= 0.99;
             velocity.y *= 0.99;
 
-            sprite.rotation = radians;
+            sprite.rotation = rads;
             
             pos.x = sprite.x += velocity.x;
             pos.y = sprite.y += velocity.y;
         }
         var setupListeners = function() {
-            $(document).on('keydown', function(e) {
-                switch (e.keyCode) {
-                    case 32:
-                        isThrusting = true;
-                    break;
-                    case 70:
-                        bullets.push(new Bullet(pos.x, pos.y, radians, {
-                            x:Math.cos(radians) * 20 + velocity.x, 
-                            y:Math.sin(radians) * 20 + velocity.y
-                        }));
-                    break;
-                }
-            });
+            if (player) {
+                $(document).on('keydown', function(e) {
+                    switch (e.keyCode) {
+                        case 32:
+                            isThrusting = true;
+                        break;
+                        case 70:
+                            bullets.push(new Bullet(pos.x, pos.y, rads, {
+                                x:Math.cos(rads) * 20 + velocity.x, 
+                                y:Math.sin(rads) * 20 + velocity.y
+                            }));
+                        break;
+                    }
+                });
 
-            $(document).on('keyup', function(e) {
-                switch (e.keyCode) {
-                    case 32:
-                        isThrusting = false;
-                    break;
-                }
-            });
+                $(document).on('keyup', function(e) {
+                    switch (e.keyCode) {
+                        case 32:
+                            isThrusting = false;
+                        break;
+                    }
+                });
+            }
+        }
+        var radians = function(){
+            return rads;
         }
         var handleCollision = function(){
             sprite.tint = 0xFF0000;
@@ -158,7 +238,8 @@
             update: update,
             position: pos,
             handleCollision:handleCollision,
-            sprite: sprite
+            sprite: sprite,
+            radians: radians
         }
     }
 
@@ -172,10 +253,10 @@
     var world = new pixicam.World({
         screenWidth: window.innerWidth,
         screenHeight: window.innerHeight,
-        width: 5000,
-        height: 5000,
-        x: 2500,
-        y: 2500
+        width: worldDimension,
+        height: worldDimension,
+        x: worldDimension/2,
+        y: worldDimension/2
     });
 
     var camera = world.camera;
@@ -191,13 +272,13 @@
     
     document.body.appendChild(renderer.view);
 
-    loader.add("ship.png").add("plasma.png").add("tile.png").load(setup);
+    loader.add("ship.png").add("plasma.png").add("tile.png").add("enemy.png").load(setup);
 
     function setup() {
         loop = setInterval(function(){ update(); }, 30);
         
         var frame = PIXI.Texture.fromFrame("tile.png");
-        var tiling = new PIXI.extras.TilingSprite(frame, 5000, 5000);
+        var tiling = new PIXI.extras.TilingSprite(frame, worldDimension, worldDimension);
         tiling.alpha = 0.25;
         
         var graphics = new PIXI.Graphics();
@@ -207,12 +288,20 @@
         graphics.lineStyle(5, 0xFF0000);
 
         // draw a rectangle
-        graphics.drawRect(0, 0, 5000, 5000);
+        graphics.drawRect(0, 0, worldDimension, worldDimension);
 
         world.addChild(graphics);
 
         world.addChild(tiling);
-        ship = new Ship();
+        ship = new Ship(true);
+        
+        shipRef = objectsRef.push({
+            x:ship.pos.x,
+            y:ship.pos.y,
+            r:0
+        });
+        
+        shipID = shipRef.key();
         
         stage.addChild(instructions);
         
@@ -248,7 +337,29 @@
         world.update();
         renderer.render(stage);
         
-        CollisionManager();
+        shipRef.update({x:ship.pos.x, y:ship.pos.y, r:ship.radians()||0});
+        
+        delete objects[shipID];
+        
+        if (enemies.length > 0) {
+            enemies.forEach(function(enemy){
+                if(objects[enemy.key]) {
+                    enemy.update(objects[enemy.key]);
+                    //delete objects[enemy.key];
+                } else {
+                    enemy.destroy();
+                }
+            });
+        }
+        
+        for (var key in objects) {
+            if (objects.hasOwnProperty(key)) {
+                var data = objects[key];
+                var enemy = new Enemy(key, data);
+                    
+                enemies.push(enemy);
+            }
+        }
         
         if( graveyard.length > 0) {
             graveyard.forEach(function(body){
@@ -256,6 +367,12 @@
             });
             graveyard = [];
         }
+        
+        CollisionManager();
+    }
+    
+    window.onbeforeunload = function() {
+       shipRef.remove();
     }
     
     Math.radians = function(degrees) {
