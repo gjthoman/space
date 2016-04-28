@@ -246,8 +246,8 @@
                         break;
                         case 70:
                             bulletsRef.push({
-                                x: pos.x,
-                                y: pos.y,
+                                x: pos.x + Math.cos(rads) * 30,
+                                y: pos.y + Math.sin(rads) * 30,
                                 r: rads,
                                 v: {
                                     x: Math.cos(rads) * 20 + velocity.x,
@@ -425,8 +425,8 @@
     };
     
     var collisionArea = {
-        w:30,
-        h:30
+        w:20,
+        h:20
     }
     
     CollisionManager = function(){
@@ -441,6 +441,7 @@
 
                     if(ydist > -collisionArea.h && ydist < collisionArea.h){
                         ship.handleCollision();
+                        bullet.handleCollion();
                     }		
                 }	
 
@@ -452,6 +453,7 @@
                             var ydist = bullet.position().y - enemy.position().y;
                             if(ydist > -collisionArea.h && ydist < collisionArea.h){
                                 enemy.handleCollision();
+                                bullet.handleCollion();
                             }		
                         }	
                     }
