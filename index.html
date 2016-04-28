@@ -13,18 +13,18 @@
     var shipID;
     var shipRef;
     var objects = {};
-    var objectsRef = ref.child("ship");
+    var shipsRef = ref.child("ships");
+    var bulletsRef = ref.child("bullets");
     var enemies = {};
     
-    objectsRef.on("value", function(snapshot) {
+    shipsRef.on("value", function(snapshot) {
         enemyData = snapshot.val();
         
         for (var key in enemyData) {
             if (enemyData.hasOwnProperty(key)) {
                 if (shipID != key){ 
                     if ( enemies.hasOwnProperty(key)){
-                        console.log(enemyData[key]);
-                        enemies[key].update(enemyData[key]);
+                        enemies[key].shipData(enemyData[key]);
                         
                     } else {
                         enemies[key] = new Enemy(key, enemyData[key]); 
@@ -33,23 +33,34 @@
             }
         }
     });
+    bulletsRef.on("child_added", function(snapshot) {
+        if ( bullets[snapshot.key()] == undefined){
+            bullets[snapshot.key()] = new Bullet(snapshot.key(), snapshot.val());
+        }
+    });
     
 	var Container = PIXI.Container,
     autoDetectRenderer = PIXI.autoDetectRenderer,
     loader = PIXI.loader,
     resources = PIXI.loader.resources,
     Sprite = PIXI.Sprite;
-    var ship, loop;
+    var ship, loop, shipUpload;
     var mousePos = {};
     var graveyard = [];
     var mouseThrottle;
-    var bullets = [];
+    var bullets = {};
     
-    var worldDimension = 1000;
+    var worldDimension = 2000;
     
-    var Bullet = function(x, y, radians, speed) {
+    var Bullet = function(key, data) {
+        var x, y, radians, speed;
         var sprite;
         var init = function(){
+            x = data.x;
+            y = data.y;
+            radians = data.r;
+            speed = data.v;
+            
             sprite = new Sprite(resources["plasma.png"].texture);
 
             sprite.anchor.x = 0.5;
@@ -63,8 +74,8 @@
         
         var update = function(){
             if ( x < 0 || y < 0 || x > worldDimension || y > worldDimension) {
-                var i = bullets.indexOf(this);
-                bullets.splice(i, 1);
+                delete bullets[key]
+                bulletsRef.child(key).remove();
                 
                 graveyard.push(this);
             }
@@ -92,6 +103,12 @@
                 y: y
             }
         }
+        var handleCollision = function(){
+            delete bullets[key];
+            bulletsRef.child(key).remove();
+
+            graveyard.push(this);
+        }
         
         init();
         
@@ -100,14 +117,18 @@
             position: position,
             destroy: destroy,
             height: height,
-            width: width
+            width: width,
+            handleCollion: handleCollision
         }
     }
     
     var Enemy = function(key, data) {
         var sprite;
         var key = key;
-        var x,y;
+        var x = 0;
+        var y = 0;
+        var velocity = 0;
+        var rotation = 0;
         var init = function(){
             sprite = new Sprite(resources["enemy.png"].texture);
 
@@ -116,21 +137,23 @@
             sprite.rotation = 0;
 
             sprite.position.set(data.x, data.y);
-            
+            x = data.x;
+            y = data.y;
+            velocity = data.v;
             world.addChild(sprite);
         }
         
-        var update = function(data){
-            if ( data.x < 0 || data.y < 0 || data.x > worldDimension || data.y > worldDimension) {
-                var i = enemy.indexOf(this);
-                enemy.splice(i, 1);
-                
-                graveyard.push(this);
-            }
-            
-            x = sprite.x = data.x;
-            y = sprite.y = data.y;
-            sprite.rotation = data.r;
+        var shipData = function(_data) {
+            x = _data.x;
+            y = _data.y;
+            velocity = _data.v;
+            rotation = _data.r;
+        }
+        
+        var update = function(){
+            x = sprite.x += velocity.x;
+            y = sprite.y += velocity.y;
+            sprite.rotation = rotation;
         }
         
         var destroy = function() {
@@ -150,16 +173,23 @@
                 y: data.y
             }
         }
+        var handleCollision = function(){
+            delete enemies[key];
+            shipsRef.child(key).remove();
+            graveyard.push(this);
+        }
         
         init();
         
         return {
             update: update,
+            shipData: shipData,
             position: position,
             destroy: destroy,
             height: height,
             width: width,
-            key: key
+            key: key,
+            handleCollision: handleCollision
         }
     }
     
@@ -215,10 +245,15 @@
                             isThrusting = true;
                         break;
                         case 70:
-                            bullets.push(new Bullet(pos.x, pos.y, rads, {
-                                x:Math.cos(rads) * 20 + velocity.x, 
-                                y:Math.sin(rads) * 20 + velocity.y
-                            }));
+                            bulletsRef.push({
+                                x: pos.x,
+                                y: pos.y,
+                                r: rads,
+                                v: {
+                                    x: Math.cos(rads) * 20 + velocity.x,
+                                    y: Math.sin(rads) * 20 + velocity.y
+                                }
+                            });
                         break;
                     }
                 });
@@ -241,6 +276,12 @@
                 sprite.tint = 0xFFFFFF;
             }, 250);
         }
+        var getVelocity = function(){
+            return {
+                x: velocity.x,
+                y: velocity.y
+            }
+        }
         
         init();
         
@@ -250,7 +291,8 @@
             position: pos,
             handleCollision:handleCollision,
             sprite: sprite,
-            radians: radians
+            radians: radians,
+            velocity: getVelocity
         }
     }
 
@@ -305,7 +347,7 @@
         world.addChild(tiling);
         ship = new Ship(true);
         
-        shipRef = objectsRef.push({
+        shipRef = shipsRef.push({
             x:ship.pos.x,
             y:ship.pos.y,
             r:0
@@ -317,6 +359,11 @@
         
         setupListeners();
         loop = setInterval(function(){ update(); }, 30);
+        shipUpload = setInterval(function(){ upload(); }, 100);
+    }
+    
+    function upload(){
+        shipRef.update({x:ship.pos.x, y:ship.pos.y, r:ship.radians()||0, v:ship.velocity()});
     }
     
     function setupListeners() {
@@ -336,19 +383,23 @@
     function update(){
         ship.update();
         
-        if (bullets.length > 0) {
-            bullets.forEach(function(bullet){
-                bullet.update(); 
-            });
+        for (var key in bullets) {
+            if (bullets.hasOwnProperty(key)) {
+                bullets[key].update();
+            }
         }
         
         camera.x = ship.pos.x;
         camera.y = ship.pos.y;
+        
+        for (var key in enemies) {
+            if (enemies.hasOwnProperty(key)) {
+                enemies[key].update();
+            }
+        }
 
         world.update();
         renderer.render(stage);
-        
-        shipRef.update({x:ship.pos.x, y:ship.pos.y, r:ship.radians()||0});
         
         if( graveyard.length > 0) {
             graveyard.forEach(function(body){
@@ -356,6 +407,7 @@
             });
             graveyard = [];
         }
+        
         
         CollisionManager();
     }
@@ -372,19 +424,41 @@
         return radians * 180 / Math.PI;
     };
     
+    var collisionArea = {
+        w:30,
+        h:30
+    }
+    
     CollisionManager = function(){
-        for (var i = 0; i < bullets.length; i++) 	{
-            var bullet = bullets[i];		
-            var xdist = bullet.position().x - ship.position.x;
-            
-            if(xdist > -bullet.width() && xdist < bullet.width()){
-                var ydist = bullet.position().y - ship.position.y;
-            
-                if(ydist > -bullet.height() && ydist < bullet.height()){
-                    ship.handleCollision();
-                }		
-            }	
+        for (var key in bullets) {
+            if (bullets.hasOwnProperty(key)) {
+        
+                var bullet = bullets[key];		
+                var xdist = bullet.position().x - ship.position.x;
+
+                if(xdist > -collisionArea.w && xdist < collisionArea.w){
+                    var ydist = bullet.position().y - ship.position.y;
+
+                    if(ydist > -collisionArea.h && ydist < collisionArea.h){
+                        ship.handleCollision();
+                    }		
+                }	
+
+                for (var key in enemies) {
+                    if (enemies.hasOwnProperty(key)) {
+                        var enemy = enemies[key];
+                        var xdist = bullet.position().x - enemy.position().x;
+                        if(xdist > -collisionArea.w && xdist < collisionArea.w){
+                            var ydist = bullet.position().y - enemy.position().y;
+                            if(ydist > -collisionArea.h && ydist < collisionArea.h){
+                                enemy.handleCollision();
+                            }		
+                        }	
+                    }
+                }
+            }
         }
+        
     }
 </script>
 </body>
